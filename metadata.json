@@ -1,0 +1,6 @@
+{
+  "name": "REAVITA - Plataforma Inteligente de Reabilitação Física",
+  "description": "Plataforma inteligente de apoio à reabilitação física com inteligência artificial, evidências científicas, REAVITA CARE para pacientes e REAVITA PRO para fisioterapeutas e clínicas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

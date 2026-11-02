@@ -1,0 +1,127 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Pillar 1: Default-deny catch-all safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Pillar 2 & 3: Primitives and validation helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Check if a physiotherapist has an active approved link to this patient
+    function hasActivePatientLink(patientId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/links/$(request.auth.uid + '_' + patientId));
+    }
+
+    // 1. Users collection: Isolated to the owner
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      
+      // Prevent self-escalation of roles: user cannot assign themselves admin role
+      allow create: if isOwner(userId) 
+        && isValidId(userId)
+        && request.resource.data.keys().hasAll(['name', 'email', 'role'])
+        && request.resource.data.role != 'platform_admin';
+
+      allow update: if isOwner(userId)
+        && request.resource.data.role == resource.data.role // Role is immutable by client
+        && request.resource.data.email == resource.data.email; // Email is immutable
+      
+      allow delete: if isAdmin();
+    }
+
+    // 2. Patient Assessments: Isolated to the patient and authorized physiotherapists
+    match /assessments/{assessmentId} {
+      allow get: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid || 
+        hasActivePatientLink(resource.data.patientId) || 
+        isAdmin()
+      );
+      
+      allow list: if isSignedIn() && resource.data.patientId == request.auth.uid;
+
+      allow create: if isSignedIn() 
+        && request.resource.data.patientId == request.auth.uid
+        && request.resource.data.primaryComplaint is string
+        && request.resource.data.primaryComplaint.size() <= 2000;
+
+      allow update: if isSignedIn() 
+        && resource.data.patientId == request.auth.uid
+        && request.resource.data.patientId == resource.data.patientId;
+
+      allow delete: if isOwner(resource.data.patientId) || isAdmin();
+    }
+
+    // 3. Medical Documents: Private sensitive health data (LGPD Art. 11)
+    match /documents/{documentId} {
+      allow get: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid || 
+        hasActivePatientLink(resource.data.patientId)
+      );
+
+      allow list: if isSignedIn() && resource.data.patientId == request.auth.uid;
+
+      allow create: if isSignedIn() 
+        && request.resource.data.patientId == request.auth.uid
+        && request.resource.data.fileName is string
+        && request.resource.data.fileName.size() <= 200;
+
+      allow update: if isSignedIn() 
+        && resource.data.patientId == request.auth.uid
+        && request.resource.data.patientId == resource.data.patientId;
+
+      allow delete: if isOwner(resource.data.patientId);
+    }
+
+    // 4. Patient-Physiotherapist Links
+    match /links/{linkId} {
+      allow get: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid || 
+        resource.data.physioId == request.auth.uid || 
+        isAdmin()
+      );
+
+      allow list: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid || 
+        resource.data.physioId == request.auth.uid
+      );
+
+      allow create: if isSignedIn() && (
+        request.resource.data.patientId == request.auth.uid || 
+        request.resource.data.physioId == request.auth.uid
+      );
+
+      allow update: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid || 
+        resource.data.physioId == request.auth.uid
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // 5. Audit Logs: Write-only or Admin read-only
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false; // Audit logs are immutable
+    }
+
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Dados cadastrais de identificação do usuário e perfil de acesso.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 150 },
+        "email": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["patient", "physiotherapist", "clinic_admin", "platform_admin"] },
+        "phone": { "type": "string", "maxLength": 30 },
+        "cpf": { "type": "string", "maxLength": 20 },
+        "themePreference": { "type": "string", "enum": ["light", "dark", "system"] },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "name", "email", "role", "createdAt"]
+    },
+    "PatientAssessment": {
+      "title": "PatientAssessment",
+      "description": "Anamnese estruturada e dados clínicos autorrelatados pelo paciente.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "patientId": { "type": "string", "maxLength": 128 },
+        "primaryComplaint": { "type": "string", "maxLength": 1000 },
+        "painOnset": { "type": "string", "maxLength": 50 },
+        "completedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "patientId", "primaryComplaint"]
+    },
+    "MedicalDocument": {
+      "title": "MedicalDocument",
+      "description": "Documentos e laudos de exames médicos com extração em 3 camadas.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "patientId": { "type": "string", "maxLength": 128 },
+        "fileName": { "type": "string", "maxLength": 200 },
+        "documentCategory": { "type": "string", "maxLength": 50 },
+        "uploadedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "patientId", "fileName", "uploadedAt"]
+    },
+    "PatientProfessionalLink": {
+      "title": "PatientProfessionalLink",
+      "description": "Vínculo clínico e autorização de consentimento nos termos da LGPD.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "patientId": { "type": "string", "maxLength": 128 },
+        "physioId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["active", "pending", "revoked"] },
+        "linkedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "patientId", "physioId", "status", "linkedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Dados do perfil de usuário com acesso isolado ao proprietário."
+    },
+    "/assessments/{assessmentId}": {
+      "schema": { "$ref": "#/entities/PatientAssessment" },
+      "description": "Questionário clínico do paciente com acesso apenas ao próprio paciente e fisioterapeuta vinculado."
+    },
+    "/documents/{documentId}": {
+      "schema": { "$ref": "#/entities/MedicalDocument" },
+      "description": "Laudos médicos e exames com leitura privada restrita."
+    },
+    "/links/{linkId}": {
+      "schema": { "$ref": "#/entities/PatientProfessionalLink" },
+      "description": "Vínculos bilaterais entre paciente e profissional de saúde."
+    }
+  }
+}
